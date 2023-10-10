@@ -2,56 +2,54 @@ package main
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 )
 
-type Article struct {
-	Title string "json:title"
-	Desc  string "json:desc"
+type Product struct {
+	Name  string `json:"name"`
+	Price int    `json:"price"`
+	Stock int    `json:"stock"`
 }
 
-type Articles []Article
-
-var articles = Articles{
-	Article{Title: "Hello", Desc: "Desc 1"},
-	Article{Title: "Hello2", Desc: "Desc 2"},
-}
+var products []Product
 
 func main() {
-	http.HandleFunc("/", getHome)
-	http.HandleFunc("/articles", getArticles)
-	http.HandleFunc("/articles-post", withLogging(postArticles))
-	http.ListenAndServe(":3000", nil)
+	http.HandleFunc("/product", ProductHandler)
+	http.ListenAndServe(":8080", nil)
 }
 
-func getHome(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Hello World"))
-}
-
-func getArticles(w http.ResponseWriter, r *http.Request) {
-
-	json.NewEncoder(w).Encode(articles)
-}
-
-func postArticles(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "POST" {
-		var newArticle Article
-		err := json.NewDecoder(r.Body).Decode(&newArticle)
+func ProductHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		// Handle GET request, return list of products
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(products)
+	} else if r.Method == "POST" {
+		// Handle POST request, parse request body and validate
+		var product Product
+		err := json.NewDecoder(r.Body).Decode(&product)
 		if err != nil {
-			http.Error(w, "Can't read body", http.StatusInternalServerError)
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "Invalid request body")
+			return
 		}
 
-		articles = append(articles, newArticle)
-		json.NewEncoder(w).Encode(articles)
-	} else {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-	}
-}
+		// Basic validation
+		if product.Name == "" || product.Price <= 0 || product.Stock < 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "Invalid product data")
+			return
+		}
 
-func withLogging(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Logged koneksi dari", r.RemoteAddr)
-		next.ServeHTTP(w, r)
+		// Save the product to the list
+		products = append(products, product)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(product)
+	} else {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		fmt.Fprintf(w, "Method not allowed")
 	}
 }
